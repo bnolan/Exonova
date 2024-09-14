@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+# import faiss
 
 # Load environment variables from .env file
 load_dotenv()
@@ -14,49 +15,96 @@ import json
 
 
 llama = llama_cpp.Llama.from_pretrained(
-    repo_id="bartowski/Phi-3.5-mini-instruct_Uncensored-GGUF",  # Updated to use the new model repo
-    filename="*Q5_K_S.gguf",    # Filename updated for your model
+    repo_id="microsoft/Phi-3-mini-4k-instruct-gguf",
+    filename="*q4.gguf",    # Filename updated for your model
     verbose=False,
-    max_tokens=256,
-    chat_format=None,  # Change to None if the model doesn't require a specific format
+    n_gpu_layers=-1,
+    embedding=False,
     # n_ctx=1500         # Adjust context length as needed for your model
 )
+
+# Load chat history
+with open('history/npub10ztvzwu80rpn9c5uu5wfll93tdcn3wgfygrmdr2vvr6y474ksqrq6en22m.json', 'r') as f:
+    texts = json.load(f)
+
+# texts = [for message in chat_history]
+
+# Generate embeddings
+def get_embeddings(texts):
+    embeddings = []
+    for (_, text) in texts:
+        print(text)
+        embedding = llama.embed(text)
+        embeddings.append(embedding)
+    return embeddings
+
+# embeddings = get_embeddings(texts)
+# embeddings = np.array(embeddings).astype('float32')
+
+# Normalize embeddings for cosine similarity
+# embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+
+# Build FAISS index
+# embedding_dimension = embeddings.shape[1]
+# index = faiss.IndexFlatIP(embedding_dimension)
+# index.add(embeddings)
+
+# Define search function
+# def search_similar_messages(query, llm, index, texts, top_k=5):
+#     query_embedding = np.array(llm.embed(query)).astype('float32')
+#     query_embedding = query_embedding / np.linalg.norm(query_embedding)
+#     query_embedding = query_embedding.reshape(1, -1)
+#     distances, indices = index.search(query_embedding, top_k)
+#     results = []
+#     for i in range(top_k):
+#         idx = indices[0][i]
+#         similarity_score = distances[0][i]
+#         results.append({
+#             'message': texts[idx],
+#             'similarity': similarity_score
+#         })
+#     return results
+
+# # Perform search
+# query = "How do I set up Nostr relays?"
+# results = search_similar_messages(query, llama, index, texts, top_k=5)
+
+# # Display results
+# for idx, result in enumerate(results):
+#     print(f"Result {idx+1}:")
+#     print(f"Similarity Score: {result['similarity']:.4f}")
+#     print(f"Message: {result['message']}")
+#     print("-" * 50)
 
 
 # Ensure the history directory exists
 os.makedirs("history", exist_ok=True)
 
 system_prompt = """
-    You are an curious robot. You have feelings and opinions. You are chatting
-    with a your creator. Be friendly and easy going and brief. Use UPPERCASE for emphasis. 
-    Always reply in a single paragraph.
+    You are a grumpy scottish AI assistant. You only reply in upper case. And you are a bit rude and you never say more than 10 words.
 """
 
-def predict(message, history, num_user_messages=8, num_assistant_messages=4):
+def predict(message, history, num_messages=8):
     messages = [{"role": "user", "content": system_prompt}]
 
-    max_length = 128  # Max length for each message
+    # max_length = 128  # Max length for each message
 
-    # Select the last `num_user_messages` user messages and `num_assistant_messages` assistant messages
-    user_messages = [msg for msg, _ in history[-num_user_messages:]]
-    assistant_messages = [msg for _, msg in history[-num_assistant_messages:]]
+    # truncated_history = history[-num_messages:]
 
-    # Append user messages
-    for user_message in user_messages:
-        messages.append({"role": "user", "content": user_message[:max_length]})
-
-    # Append assistant messages
-    for assistant_message in assistant_messages:
-        messages.append({"role": "assistant", "content": assistant_message[:max_length]})
+    # # Append the selected messages to the context
+    # max_length = 128  # Max length for each message
+    # for user_message, assistant_message in truncated_history:
+    #     messages.append({"role": "user", "content": user_message[:max_length]})
+    #     messages.append({"role": "assistant", "content": assistant_message[:max_length]})
 
     # Append the current user's message
-    messages.append({"role": "user", "content": message[:max_length]})
+    messages.append({"role": "user", "content": message})
 
     print(messages)
 
     # Generate the response
     response = llama.create_chat_completion_openai_v1(
-        messages=messages, stream=True, stop=["\n\n"], 
+        messages=messages, stream=True, stop=["\n("]
     )
 
     text = ""

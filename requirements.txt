@@ -5,7 +5,7 @@ llama-cpp-python
 openai
 
 # Database
-psycopg2-binary
+faiss-cpu
 
 # Vector database
 numpy
