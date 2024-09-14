@@ -1,0 +1,17 @@
+# Llama
+llama-cpp-python
+openai
+
+# Database
+psycopg2-binary
+
+# Vector database
+numpy
+sentence-transformers
+
+# Environment variables
+python-dotenv
+
+# Rust crate dependencies
+nostr-sdk
+nostr-protocol
