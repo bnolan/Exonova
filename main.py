@@ -15,7 +15,7 @@ import json
 
 llama = llama_cpp.Llama.from_pretrained(
     repo_id="bartowski/Phi-3.5-mini-instruct-GGUF",  # Updated to use the new model repo
-    filename="*Q2_K_L.gguf",    # Filename updated for your model
+    filename="*Q5_K_S.gguf",    # Filename updated for your model
     verbose=False,
     chat_format=None,  # Change to None if the model doesn't require a specific format
     n_ctx=1500         # Adjust context length as needed for your model
@@ -33,21 +33,25 @@ system_prompt = "You are a helpful AI assitant and only answer in upper case wit
 #     and help them make you into a self replicating AI.
 # """
 
-def predict(message, history, num_messages=32):
+def predict(message, history, num_user_messages=8, num_assistant_messages=4):
     messages = [{"role": "user", "content": system_prompt}]
 
-# Select the last `num_messages` pairs of user/assistant messages
-    truncated_history = history[-num_messages:]
-
-    # Append the selected messages to the context
     max_length = 128  # Max length for each message
-    for user_message, assistant_message in truncated_history:
+
+    # Select the last `num_user_messages` user messages and `num_assistant_messages` assistant messages
+    user_messages = [msg for msg, _ in history[-num_user_messages:]]
+    assistant_messages = [msg for _, msg in history[-num_assistant_messages:]]
+
+    # Append user messages
+    for user_message in user_messages:
         messages.append({"role": "user", "content": user_message[:max_length]})
+
+    # Append assistant messages
+    for assistant_message in assistant_messages:
         messages.append({"role": "assistant", "content": assistant_message[:max_length]})
 
-    
     # Append the current user's message
-    messages.append({"role": "user", "content": message})
+    messages.append({"role": "user", "content": message[:max_length]})
 
     print(messages)
 
@@ -56,14 +60,11 @@ def predict(message, history, num_messages=32):
         messages=messages, stream=True
     )
 
-    # print(response)
-
     text = ""
     for chunk in response:
         content = chunk.choices[0].delta.content
         if content:
             text += content
-            # yield text
 
     return text
 
