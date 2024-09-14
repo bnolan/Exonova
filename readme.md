@@ -1,6 +1,14 @@
 # Exonova
 
-Built for python 3.12 LTS
+A chat bot for the Nostr network.
+
+## Using oxChat to test the app
+
+You must add this relay: `wss://relay.nostr.net` to 0xChat.
+
+## Installing
+
+(Built for python 3.12 LTS)
 
 ## (MacOS) - install python 3.12 and set up a virtual environment
 

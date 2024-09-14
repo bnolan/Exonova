@@ -63,6 +63,19 @@ async def main():
     signer = NostrSigner.keys(keys)
     client = Client(signer)
 
+    # Load relay URLs from the .env file
+    load_dotenv()  # Ensure dotenv is imported at the top of the file
+    relay_urls = os.environ.get('RELAY_URLS', '').split(',')
+    
+    # Remove any empty strings and strip whitespace
+    relay_urls = [url.strip() for url in relay_urls if url.strip()]
+    
+    if not relay_urls:
+        print("Warning: No relay URLs found in .env file. Using default relay.")
+        relay_urls = ["wss://relay.nostr.net"]
+    else:
+        print(f"Loaded {len(relay_urls)} relay URLs from .env file.")
+
     relay_urls = ["wss://relay.nostr.net"]
     for relay_url in relay_urls:
         await client.add_relay(relay_url)
