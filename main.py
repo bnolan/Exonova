@@ -81,18 +81,6 @@ async def main():
         await client.add_relay(relay_url)
     await client.connect()
 
-      # Mine a POW event and sign it with custom keys
-    # custom_keys = Keys.generate()
-    # print("Mining a POW text note...")
-    # event = EventBuilder.text_note("Hello from rust-nostr Python bindings!", []).to_pow_event(custom_keys, 20)
-    # output = await client.send_event(event)
-    # print("Event sent:")
-    # print(f" hex:    {output.id.to_hex()}")
-    # print(f" bech32: {output.id.to_bech32()}")
-    # print(output)
-    # print(f" Successfully sent to:    {output.success}")
-    # print(f" Failed to send to: {output.failed}")
-
     await asyncio.sleep(1.0)
 
     now = Timestamp.now()
@@ -104,6 +92,8 @@ async def main():
     nip59_filter = Filter().pubkey(pk).kind(Kind.from_enum(KindEnum.GIFT_WRAP())).limit(0)
     await client.subscribe([nip04_filter, nip59_filter], None)
 
+    history = []
+
     class NotificationHandler(HandleNotification):
         async def handle(self, relay_url, subscription_id, event: Event):
             # print(f"Received new event from {relay_url}: {event.as_json()}")
@@ -114,10 +104,12 @@ async def main():
                     msg = nip04_decrypt(sk, event.author(), event.content())
                     print(f"Received new msg: {msg}")
 
-                    response = predict(msg, [])
+                    response = predict(msg, history)
                     print(f"Response: {response}")
 
                     await client.send_direct_msg(event.author(), response, event.id())
+
+                    history.append((msg, response))
                 except Exception as e:
                     print(f"Error during content NIP04 decryption: {e}")
             elif event.kind().as_enum() == KindEnum.GIFT_WRAP():
@@ -134,10 +126,12 @@ async def main():
                             msg = rumor.content()
                             print(f"Received new msg [sealed]: {msg}")
 
-                            response = predict(msg, [])
+                            response = predict(msg, history)
                             print(f"Response: {response}")
 
                             await client.send_private_msg(sender, response, None)
+
+                            history.append((msg, response))
                         else:
                             print(f"{rumor.as_json()}")
                 except Exception as e:
