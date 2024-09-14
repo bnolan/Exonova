@@ -1,5 +1,9 @@
-# Llama
-llama-cpp-python
+# Temporary fork of llama-cpp-python to fix the llama.cpp download
+# llama-cpp-python
+git+https://github.com/abetlen/llama-cpp-python.git
+
+
+# OpenaI for Chat Completion API
 openai
 
 # Database

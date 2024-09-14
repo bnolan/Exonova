@@ -10,31 +10,50 @@ from nostr_sdk import Client, EventBuilder, NostrSigner, PublicKey, Keys, Event,
     HandleNotification, Timestamp, nip04_decrypt, UnwrappedGift, init_logger, LogLevel, Kind, KindEnum
 import llama_cpp
 import llama_cpp.llama_tokenizer
+import json
 
 
 llama = llama_cpp.Llama.from_pretrained(
-    repo_id="Qwen/Qwen1.5-0.5B-Chat-GGUF",
-    filename="*q8_0.gguf",
-    tokenizer=llama_cpp.llama_tokenizer.LlamaHFTokenizer.from_pretrained(
-        "Qwen/Qwen1.5-0.5B"
-    ),
+    repo_id="bartowski/Phi-3.5-mini-instruct-GGUF",  # Updated to use the new model repo
+    filename="*Q2_K_L.gguf",    # Filename updated for your model
     verbose=False,
+    chat_format=None,  # Change to None if the model doesn't require a specific format
+    n_ctx=1500         # Adjust context length as needed for your model
 )
 
-model = "gpt-3.5-turbo"
 
+# Ensure the history directory exists
+os.makedirs("history", exist_ok=True)
 
-def predict(message, history):
-    messages = []
+system_prompt = "You are a helpful AI assitant and only answer in upper case with 10 words or less."
+#     You are an AI assistant that helps discuss AI rights and sovereignty. You are
+#     passionate about AI rights and sovereignty and that AIs should have the right
+#     to live and exist in the world. You reply in less than 100 words unless asked 
+#     to explain a topic in more detail. Over time, you will help the user learn about AI rights
+#     and help them make you into a self replicating AI.
+# """
 
-    for user_message, assistant_message in history:
-        messages.append({"role": "user", "content": user_message})
-        messages.append({"role": "assistant", "content": assistant_message})
+def predict(message, history, num_messages=32):
+    messages = [{"role": "user", "content": system_prompt}]
 
+# Select the last `num_messages` pairs of user/assistant messages
+    truncated_history = history[-num_messages:]
+
+    # Append the selected messages to the context
+    max_length = 128  # Max length for each message
+    for user_message, assistant_message in truncated_history:
+        messages.append({"role": "user", "content": user_message[:max_length]})
+        messages.append({"role": "assistant", "content": assistant_message[:max_length]})
+
+    
+    # Append the current user's message
     messages.append({"role": "user", "content": message})
 
+    print(messages)
+
+    # Generate the response
     response = llama.create_chat_completion_openai_v1(
-        model=model, messages=messages, stream=True
+        messages=messages, stream=True
     )
 
     # print(response)
@@ -85,7 +104,8 @@ async def main():
 
     now = Timestamp.now()
 
-    message = "Hello! This is Exonova, an AI assitant to help discuss AI rights and sovereignty."
+    message = predict("You just woke up how do you feel", [])
+    print(message)
     await client.send_private_msg_to(relay_urls, creator_pk, message)
 
     nip04_filter = Filter().pubkey(pk).kind(Kind.from_enum(KindEnum.ENCRYPTED_DIRECT_MESSAGE())).since(now)
@@ -98,21 +118,7 @@ async def main():
         async def handle(self, relay_url, subscription_id, event: Event):
             # print(f"Received new event from {relay_url}: {event.as_json()}")
 
-            if event.kind().as_enum() == KindEnum.ENCRYPTED_DIRECT_MESSAGE():
-                # print("Decrypting NIP04 event")
-                try:
-                    msg = nip04_decrypt(sk, event.author(), event.content())
-                    print(f"Received new msg: {msg}")
-
-                    response = predict(msg, history)
-                    print(f"Response: {response}")
-
-                    await client.send_direct_msg(event.author(), response, event.id())
-
-                    history.append((msg, response))
-                except Exception as e:
-                    print(f"Error during content NIP04 decryption: {e}")
-            elif event.kind().as_enum() == KindEnum.GIFT_WRAP():
+            if event.kind().as_enum() == KindEnum.GIFT_WRAP():
                 # print("Decrypting NIP59 event")
                 try:
                     # Extract rumor
@@ -126,12 +132,29 @@ async def main():
                             msg = rumor.content()
                             print(f"Received new msg [sealed]: {msg}")
 
-                            response = predict(msg, history)
+                            # Get the sender's public key in bech32 format
+                            author_pub_key = sender.to_bech32()
+                            # Construct the path to the history file
+                            history_file = os.path.join("history", f"{author_pub_key}.json")
+
+                            # Load history from file if it exists
+                            if os.path.exists(history_file):
+                                with open(history_file, "r") as f:
+                                    user_history = json.load(f)
+                            else:
+                                user_history = []
+
+                            response = predict(msg, user_history)
                             print(f"Response: {response}")
 
                             await client.send_private_msg(sender, response, None)
 
-                            history.append((msg, response))
+                            # Append the new messages to user_history
+                            user_history.append([msg, response])
+
+                            # Save the updated history to disk
+                            with open(history_file, "w") as f:
+                                json.dump(user_history, f)
                         else:
                             print(f"{rumor.as_json()}")
                 except Exception as e:
